@@ -56,26 +56,24 @@ def two_in_a_row(state, player_id):
 
     for row in range(rows):
         for col in range(cols): 
-            if is_two_in_a_row(state, player_id, row, col):
-                count += 1
+            count += is_two_in_a_row(state, player_id, row, col)
 
-    for row in range(1, rows):
-        for col in range(cols - 1): 
-            if row < rows - 1 and col < cols - 1:
-                if state[row, col] == player_id and state[row + 1, col + 1] == player_id:
-                    if (row > 0 and col > 0 and state[row - 1, col - 1] == 0) or (row < rows - 2 and col < cols - 2 and state[row + 2, col + 2] == 0):
-                        count += 1
+    return count
 
-    for row in range(rows - 1):
-        for col in range(cols - 1): 
-            if state[row, col] == player_id and state[row + 1, col + 1] == player_id:
-                if (row < rows - 2 and col < cols - 2 and state[row + 2, col + 2] == 0):
-                    count += 1
+def three_in_a_row(state, player_id):
+    count = 0
+    rows, cols = state.shape
+
+    for row in range(rows):
+        for col in range(cols):
+            count += is_three_in_a_row(state, player_id, row, col)
 
     return count
 
 def is_two_in_a_row (state, player_id, row, col):
     rows,cols = state.shape
+    count = 0
+    
     is_horizontal_two = ((col < cols - 1) and 
                          ((state[row, col] == player_id and state[row, col + 1] == player_id) and 
                           (((col > 0 and state[row, col - 1] != player_id) or col ==0) and 
@@ -85,38 +83,38 @@ def is_two_in_a_row (state, player_id, row, col):
                        ((state[row, col] == player_id and state[row + 1, col] == player_id) and
                         (((row > 0 and state[row - 1, col] == 0) or row == 0) and
                          ((row < rows - 2 and state[row + 2, col] == 0) or row == rows - 2))))
+    is_left_to_right_two = ((row < rows - 1 and col < cols - 1) and
+                            ((state[row, col] == player_id and state[row + 1, col + 1] == player_id)  and 
+                             (((row == 0 or col ==0) or (row > 0 and col > 0 and state[row - 1, col - 1] != player_id)) and 
+                              ((row == rows - 2 or cols == cols-2) or
+                               (row < rows - 2 and col < cols - 2 and state[row + 2, col + 2] == 0)))))
+    is_right_to_left_two = ((row < rows - 1 and col > 0) and
+                            ((state[row, col] == player_id and state[row + 1, col - 1] == player_id)  and 
+                             (((row == 0 or col == cols - 1) or (row > 0 and col < cols - 1 and state[row - 1, col + 1] != player_id)) and 
+                              ((row == rows - 2 or cols == 1) or
+                               (row < rows - 2 and col > 1 and state[row + 2, col - 2] == 0)))))
     
-    #TODO: is_two_in_a_row
-    return is_horizontal_two or is_vertical_two
+    for flag in [is_horizontal_two, is_vertical_two, is_left_to_right_two, is_right_to_left_two]:
+        if flag:
+            count += 1
 
-def three_in_a_row(state, player_id):
+    return count
+
+def is_three_in_a_row (state, player_id, row, col):
+    rows,cols = state.shape
     count = 0
-    rows, cols = state.shape
 
-    #TODO: debug
-    for row in range(rows):
-        for col in range(cols - 2): 
-            if state[row, col] == player_id and state[row, col + 1] == player_id and state[row, col + 2] == player_id:
-                if (col > 0 and state[row, col - 1] == 0) or (col < cols - 3 and state[row, col + 3] == 0):
-                    count += 1
-
-    for col in range(cols):
-        for row in range(rows - 2):
-            if state[row, col] == player_id and state[row + 1, col] == player_id and state[row + 2, col] == player_id:
-                if (row > 0 and state[row - 1, col] == 0) or (row < rows - 3 and state[row + 3, col] == 0):
-                    count += 1
-
-    for row in range(2, rows):
-        for col in range(cols - 2):
-            if row < rows - 1 and col < cols - 1:
-                if state[row, col] == player_id and state[row - 1, col + 1] == player_id and state[row - 2, col + 2] == player_id:
-                    if (row > 2 and col > 1 and state[row - 3, col + 3] == 0) or (row < rows - 1 and col < cols - 1 and state[row - 1, col + 1] == 0):
-                        count += 1
-
-    for row in range(rows - 2):
-        for col in range(cols - 2):
-            if state[row, col] == player_id and state[row + 1, col + 1] == player_id and state[row + 2, col + 2] == player_id:
-                if (row < rows - 3 and col < cols - 3 and state[row + 3, col + 3] == 0):
-                    count += 1
+    is_horizontal = ((col < cols - 2) and 
+                     (state[row, col] == player_id and state[row, col + 1] == player_id and state[row, col + 2] == player_id))
+    is_vertical = ((row < rows - 2) and 
+                   (state[row, col] == player_id and state[row + 1, col] == player_id and state[row + 2, col] == player_id))
+    is_left_to_right = ((row < rows - 2 and col < cols - 2) and 
+                        (state[row, col] == player_id and state[row + 1, col + 1] == player_id and state[row + 2, col + 2] == player_id))
+    is_right_to_left = ((row > 1 and col < cols - 2) and 
+                        (state[row, col] == player_id and state[row - 1, col + 1] == player_id and state[row - 2, col + 2] == player_id))
+    
+    for flag in [is_horizontal, is_vertical, is_left_to_right, is_right_to_left]:
+        if flag:
+            count += 1
 
     return count
