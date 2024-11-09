@@ -1,160 +1,116 @@
 from game_utils import *
+from random import shuffle
 import numpy as np
 
-SCORE_FOR_CENTER_COLUMN = 10
-SCORE_FOR_TWO_IN_A_ROW = 8
-SCORE_FOR_THREE_IN_A_ROW = 15
+SCORE_FOR_CENTER_COLUMN = 3
+SCORE_FOR_FOUR = 10000
+SCORE_FOR_THREE = 2
+SCORE_FOR_TWO = 5
+OPPONENT_THREE = 4
 #TODO: test constants
 
 class AIAgent:
-    def __init__(self, player_id=0, depth=4):
+    def __init__(self, player_id=1, depth=4):
         self.player_id = player_id
         self.depth = depth
+        self.depth = depth if player_id == 1 else depth + 1
 
     def make_move(self, state):
         best_move = None
-        best_score = float('-inf') if self.player_id == 1 else float('inf')
-        alpha = float('-inf')
+        best_score = -float('inf')
+        alpha = -float('inf')
         beta = float('inf')
-        cache = {}
 
-        for col_id in get_valid_col_id(state):
+        valid_moves = get_valid_col_id(state)
+        shuffle(valid_moves)
+
+        for col_id in valid_moves:
             next_state = step(state.copy(), col_id=col_id, player_id=self.player_id, in_place=False)
-            score = minimax(next_state, self.depth, False, self.player_id, alpha, beta, cache)
-
-            if self.player_id == 1:
-                if score > best_score:
-                    best_score = score
-                    best_move = col_id
-                alpha = max(alpha, best_score)
-            else:
-                if score < best_score:
-                    best_score = score
-                    best_move = col_id
-                beta = min(beta, best_score)
-
+            score = minimax(next_state, self.depth - 1, False, self.player_id, alpha, beta)
+            if score > best_score:
+                best_score = score
+                best_move = col_id
+            alpha = max(alpha, best_score)
             if beta <= alpha:
                 break 
 
         return best_move
 
-def minimax(state, depth, is_maximizing_player, player_id, alpha, beta, cache):
-    state_key = state.tostring()  
-    if state_key in cache:
-        return cache[state_key]
 
-    if is_win(state):
-        return 100 if is_maximizing_player else -100
-    if is_end(state):
-        return 0 
+def minimax(state, depth, is_maximizing_player, player_id, alpha, beta):
 
-    if depth == 0:
+    if is_win(state) or is_end(state) or depth == 0:
         return evaluate_intermediate_state(state, player_id)
 
     if is_maximizing_player:
         max_eval = float('-inf')
-        for col_id in get_valid_col_id(state):
+        valid_moves = get_valid_col_id(state)
+        shuffle(valid_moves)
+        for col_id in valid_moves:
             next_state = step(state.copy(), col_id=col_id, player_id=player_id, in_place=False)
-            eval = minimax(next_state, depth - 1, False, player_id, alpha, beta, cache)
+            eval = minimax(next_state, depth - 1, False, player_id, alpha, beta)
             max_eval = max(max_eval, eval)
             alpha = max(alpha, eval)
             if beta <= alpha:
                 break
-        cache[state_key] = max_eval
         return max_eval
     else:
         min_eval = float('inf')
         opponent_id = 3 - player_id
         for col_id in get_valid_col_id(state):
             next_state = step(state.copy(), col_id=col_id, player_id=opponent_id, in_place=False)
-            eval = minimax(next_state, depth - 1, True, player_id, alpha, beta, cache)
+            eval = minimax(next_state, depth - 1, True, player_id, alpha, beta)
             min_eval = min(min_eval, eval)
             beta = min(beta, eval)
             if beta <= alpha:
                 break
-        cache[state_key] = min_eval
         return min_eval
 
 def evaluate_intermediate_state(state, player_id):
     score = 0
+    opponent_id = 3 - player_id
 
     center_count = sum(1 for row in state if row[3] == player_id)
     score += center_count * SCORE_FOR_CENTER_COLUMN
 
-    score += two_in_a_row(state, player_id) * SCORE_FOR_TWO_IN_A_ROW  
-    score += three_in_a_row(state, player_id) * SCORE_FOR_THREE_IN_A_ROW 
+    score += get_windows_score(state, player_id)
 
+    return score
+
+def get_windows_score(state, player_id, window_length=4):
+    rows, cols = state.shape
+    score = 0
+    dirs = [[0,1], [1,0], [1,1], [-1,1]] 
+
+    for r in range(rows):
+        for c in range(cols):
+            for dir in dirs:
+                window = []
+                for k in range(window_length):
+                    r_pos = r + k * dir[0]
+                    c_pos = c + k * dir[1]
+                    if 0 <= r_pos < rows and 0 <= c_pos < cols:
+                        window.append(state[r_pos][c_pos])
+                    else:
+                        break 
+                if len(window) == window_length:
+                    score += evaluate_window(window, player_id)
+
+    return score
+
+def evaluate_window(window, player_id):
     opponent_id = 3 - player_id
-    score -= two_in_a_row(state, opponent_id) * SCORE_FOR_TWO_IN_A_ROW
-    score -= three_in_a_row(state, opponent_id) * SCORE_FOR_THREE_IN_A_ROW
+    score = 0
 
-    return max(1, min(100, score))
+    player_scores = {4: SCORE_FOR_FOUR,
+                      3: SCORE_FOR_THREE,
+                      2: SCORE_FOR_TWO}
 
-def two_in_a_row(state, player_id):
-    count = 0
-    rows, cols = state.shape
+    player_count = window.count(player_id)
+    opponent_count = window.count(opponent_id)
 
-    for row in range(rows):
-        for col in range(cols): 
-            count += is_two_in_a_row(state, player_id, row, col)
+    score += player_scores.get(player_count, 0)
+    if opponent_count == 3:
+        score -= OPPONENT_THREE
 
-    return count
-
-def three_in_a_row(state, player_id):
-    count = 0
-    rows, cols = state.shape
-
-    for row in range(rows):
-        for col in range(cols):
-            count += is_three_in_a_row(state, player_id, row, col)
-
-    return count
-
-def is_two_in_a_row (state, player_id, row, col):
-    rows,cols = state.shape
-    count = 0
-
-    is_horizontal_two = ((col < cols - 1) and 
-                         ((state[row, col] == player_id and state[row, col + 1] == player_id) and 
-                          (((col > 0 and state[row, col - 1] != player_id) or col ==0) and 
-                           ((col < cols - 2 and state[row, col + 2] != player_id) or col == cols - 2))))
-    
-    is_vertical_two = ((row < rows - 1) and
-                       ((state[row, col] == player_id and state[row + 1, col] == player_id) and
-                        (((row > 0 and state[row - 1, col] == 0) or row == 0) and
-                         ((row < rows - 2 and state[row + 2, col] == 0) or row == rows - 2))))
-    is_left_to_right_two = ((row < rows - 1 and col < cols - 1) and
-                            ((state[row, col] == player_id and state[row + 1, col + 1] == player_id)  and 
-                             (((row == 0 or col ==0) or (row > 0 and col > 0 and state[row - 1, col - 1] != player_id)) and 
-                              ((row == rows - 2 or cols == cols-2) or
-                               (row < rows - 2 and col < cols - 2 and state[row + 2, col + 2] == 0)))))
-    is_right_to_left_two = ((row < rows - 1 and col > 0) and
-                            ((state[row, col] == player_id and state[row + 1, col - 1] == player_id)  and 
-                             (((row == 0 or col == cols - 1) or (row > 0 and col < cols - 1 and state[row - 1, col + 1] != player_id)) and 
-                              ((row == rows - 2 or cols == 1) or
-                               (row < rows - 2 and col > 1 and state[row + 2, col - 2] == 0)))))
-    
-    for flag in [is_horizontal_two, is_vertical_two, is_left_to_right_two, is_right_to_left_two]:
-        if flag:
-            count += 1
-
-    return count
-
-def is_three_in_a_row (state, player_id, row, col):
-    rows,cols = state.shape
-    count = 0
-
-    is_horizontal = ((col < cols - 2) and 
-                     (state[row, col] == player_id and state[row, col + 1] == player_id and state[row, col + 2] == player_id))
-    is_vertical = ((row < rows - 2) and 
-                   (state[row, col] == player_id and state[row + 1, col] == player_id and state[row + 2, col] == player_id))
-    is_left_to_right = ((row < rows - 2 and col < cols - 2) and 
-                        (state[row, col] == player_id and state[row + 1, col + 1] == player_id and state[row + 2, col + 2] == player_id))
-    is_right_to_left = ((row > 1 and col < cols - 2) and 
-                        (state[row, col] == player_id and state[row - 1, col + 1] == player_id and state[row - 2, col + 2] == player_id))
-    
-    for flag in [is_horizontal, is_vertical, is_left_to_right, is_right_to_left]:
-        if flag:
-            count += 1
-
-    return count
+    return score
